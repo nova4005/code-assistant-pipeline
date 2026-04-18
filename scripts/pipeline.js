@@ -288,9 +288,18 @@ function chunkByFunctions(code, ext) {
 }
 
 // ── Main pipeline ───────────────────────────────────────────────
-async function runPipeline(targetFile, mode, config, backendType, ctxOverride, triageEnabled = false) {
+async function runPipeline(targetFile, mode, config, backendType, ctxOverride, triageEnabled = false, quiet = false) {
   const taskConfig = config.tasks[mode];
   if (!taskConfig) throw new Error(`Unknown task mode: ${mode}. Available: ${Object.keys(config.tasks).join(', ')}`);
+
+  // When quiet, buffer all output instead of writing directly
+  const stdoutBuf = [];
+  const stderrBuf = [];
+  const out = quiet ? (s) => stdoutBuf.push(s) : (s) => process.stdout.write(s);
+  const err = quiet ? (s) => stderrBuf.push(s) : (s) => process.stderr.write(s);
+  const mkResult = (exitCode) => quiet
+    ? { exitCode, stdout: stdoutBuf.join(''), stderr: stderrBuf.join('') }
+    : exitCode;
 
   const baseUrl = backendType === 'mlx'
     ? config.backend.mlxUrl
@@ -323,7 +332,7 @@ async function runPipeline(targetFile, mode, config, backendType, ctxOverride, t
   let codeSegments;
   if (tokenEstimate > maxInputTokens) {
     codeSegments = chunkByFunctions(code, ext);
-    process.stderr.write(`⚠️  File is ~${tokenEstimate} tokens, splitting into ${codeSegments.length} chunks\n`);
+    err(`⚠️  File is ~${tokenEstimate} tokens, splitting into ${codeSegments.length} chunks\n`);
   } else {
     codeSegments = [code];
   }
@@ -381,7 +390,7 @@ async function runPipeline(targetFile, mode, config, backendType, ctxOverride, t
         throw new Error(`API error ${res.status}: ${body}`);
       }
 
-      process.stderr.write(`\n🔄 Streaming ${mode} for ${targetFile} (${framework}, ctx=${numCtx})...\n`);
+      err(`\n🔄 Streaming ${mode} for ${targetFile} (${framework}, ctx=${numCtx})...\n`);
 
       // Stream response — different formats for Ollama native vs OpenAI-compat
       let buffer = '';
@@ -402,14 +411,14 @@ async function runPipeline(targetFile, mode, config, backendType, ctxOverride, t
             try {
               const parsed = JSON.parse(data);
               const token = parsed.choices?.[0]?.delta?.content || '';
-              if (token) { process.stdout.write(token); fullOutput += token; }
+              if (token) { out(token); fullOutput += token; }
             } catch {}
           } else {
             // Ollama native NDJSON: {"message":{"content":"..."},"done":false}
             try {
               const parsed = JSON.parse(line);
               const token = parsed.message?.content || '';
-              if (token) { process.stdout.write(token); fullOutput += token; }
+              if (token) { out(token); fullOutput += token; }
             } catch {}
           }
         }
@@ -424,19 +433,19 @@ async function runPipeline(targetFile, mode, config, backendType, ctxOverride, t
               if (data !== '[DONE]') {
                 const parsed = JSON.parse(data);
                 const token = parsed.choices?.[0]?.delta?.content || '';
-                if (token) { process.stdout.write(token); fullOutput += token; }
+                if (token) { out(token); fullOutput += token; }
               }
             }
           } else {
             const parsed = JSON.parse(buffer);
             const token = parsed.message?.content || '';
-            if (token) { process.stdout.write(token); fullOutput += token; }
+            if (token) { out(token); fullOutput += token; }
           }
         } catch {}
       }
 
       if (codeSegments.length > 1) {
-        process.stdout.write('\n\n---\n\n');
+        out('\n\n---\n\n');
         fullOutput += '\n\n---\n\n';
       }
     } catch (err) {
@@ -453,13 +462,13 @@ async function runPipeline(targetFile, mode, config, backendType, ctxOverride, t
     }
   }
 
-  process.stdout.write('\n');
+  out('\n');
 
   // Write draft file if configured
   if (taskConfig.writeDraft) {
     const draftPath = path.resolve(targetFile) + `.${mode}.llm-draft`;
     fs.writeFileSync(draftPath, fullOutput, 'utf-8');
-    process.stderr.write(`📝 Draft written to: ${draftPath}\n`);
+    err(`📝 Draft written to: ${draftPath}\n`);
   }
 
   // Severity check for commit blocking
@@ -476,20 +485,20 @@ async function runPipeline(targetFile, mode, config, backendType, ctxOverride, t
     }
 
     if (filtered.trim() === 'No actionable findings.') {
-      process.stderr.write('✅ Triage: all findings are false positives\n');
-      return 0;
+      err('✅ Triage: all findings confirmed as false positives\n');
+      return mkResult(0);
     }
 
     const severities = parseSeverities(filtered);
     const blocked = taskConfig.blockOnSeverity.filter(s => severities.has(s));
     if (blocked.length > 0) {
-      process.stderr.write(`\n🚫 Commit blocked — found severity: ${blocked.join(', ')}\n`);
-      process.stderr.write('   Fix the issues above or use --no-verify to bypass.\n');
-      return 1;
+      err(`\n🚫 Commit blocked — found severity: ${blocked.join(', ')}\n`);
+      err('   Fix the issues above or use --no-verify to bypass.\n');
+      return mkResult(1);
     }
   }
 
-  return 0;
+  return mkResult(0);
 }
 
 // ── AI Triage pass ──────────────────────────────────────────────
@@ -645,13 +654,18 @@ async function runCommitHook(files, config, backendType, triageEnabled) {
   for (const file of files) {
     if (hookConfig.parallelTasks) {
       const settled = await Promise.allSettled(
-        tasks.map(mode => runPipeline(file, mode, config, backendType, null, triageEnabled))
+        tasks.map(mode => runPipeline(file, mode, config, backendType, null, triageEnabled, true))
       );
-      for (const result of settled) {
+      // Print buffered output sequentially — no interleaving
+      for (let i = 0; i < settled.length; i++) {
+        const result = settled[i];
         if (result.status === 'fulfilled') {
-          maxExitCode = Math.max(maxExitCode, result.value);
+          const { exitCode, stdout, stderr } = result.value;
+          if (stderr) process.stderr.write(stderr);
+          if (stdout) process.stdout.write(stdout);
+          maxExitCode = Math.max(maxExitCode, exitCode);
         } else {
-          process.stderr.write(`❌ ${result.reason?.message || result.reason}\n`);
+          process.stderr.write(`❌ ${tasks[i]} failed for ${file}: ${result.reason?.message || result.reason}\n`);
           maxExitCode = 1;
         }
       }
