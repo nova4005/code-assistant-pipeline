@@ -1,0 +1,10 @@
+{
+  "projects": [],
+  "defaults": {
+    "baseBranch": "main",
+    "maxTasksPerRun": 5,
+    "complexityCeiling": "M",
+    "scanOnRun": true,
+    "enabled": true
+  }
+}

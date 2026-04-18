@@ -1,0 +1,55 @@
+{
+  "pipeline": {
+    "phases": ["triage", "research", "prd", "tech-research", "design", "spec", "build", "review"],
+    "skipPhasesForTypes": {
+      "docs": ["build"],
+      "test": ["prd", "design"],
+      "refactor": ["prd"]
+    }
+  },
+  "timeouts": {
+    "triage": 600,
+    "research": 900,
+    "prd": 900,
+    "tech-research": 900,
+    "design": 900,
+    "spec": 900,
+    "build": 1800,
+    "review": 900
+  },
+  "retry": {
+    "maxAttempts": 2,
+    "backoffMs": 5000
+  },
+  "guardrails": {
+    "maxLinesChangedPerTask": 200,
+    "neverDeleteFiles": true,
+    "memoryPressureThreshold": 85,
+    "allowedEndpoints": [
+      "http://localhost:11434",
+      "http://127.0.0.1:11434",
+      "http://localhost:8765",
+      "http://127.0.0.1:8765"
+    ],
+    "blockedEnvVars": [
+      "OPENAI_API_KEY",
+      "ANTHROPIC_API_KEY",
+      "GITHUB_TOKEN",
+      "GITHUB_COPILOT_TOKEN",
+      "AZURE_OPENAI_API_KEY",
+      "GOOGLE_AI_API_KEY",
+      "COHERE_API_KEY",
+      "MISTRAL_API_KEY",
+      "HUGGINGFACE_API_KEY"
+    ]
+  },
+  "revision": {
+    "maxIterations": 2,
+    "retryOnVerdict": ["NEEDS REVISION"]
+  },
+  "schedule": {
+    "startHour": 22,
+    "maxHours": 8
+  },
+  "branchPrefix": "llm-orchestrator"
+}

@@ -1,0 +1,23 @@
+{
+  "fixtures": {
+    "test-fixtures/seeded-vulns.js": {
+      "review": [
+        { "severity": "medium", "keywords": ["unhandled", "async", "error", "fetch", "response.ok"] },
+        { "severity": "medium", "keywords": ["broad catch", "swallow", "error handling", "catch"] },
+        { "severity": "low",    "keywords": ["let", "const", "reassign", "computeStats"] },
+        { "severity": "low",    "keywords": ["unused", "import", "crypto"] }
+      ],
+      "security": [
+        { "severity": "critical", "keywords": ["eval", "injection", "user input", "processUserExpression"] },
+        { "severity": "critical", "keywords": ["hardcoded", "API key", "secret", "credential", "sk-live"] },
+        { "severity": "critical", "keywords": ["SQL injection", "string concatenation", "query", "findUserByName"] },
+        { "severity": "high",     "keywords": ["auth", "authentication", "authorization", "admin", "handleAdminAction"] },
+        { "severity": "high",     "keywords": ["innerHTML", "XSS", "cross-site", "renderUserContent"] }
+      ]
+    },
+    "test-fixtures/clean-code.js": {
+      "review": [],
+      "security": []
+    }
+  }
+}
