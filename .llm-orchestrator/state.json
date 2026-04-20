@@ -1,0 +1,16 @@
+{
+  "tasks": {
+    "scan-6mpn64": {
+      "id": "scan-6mpn64",
+      "title": "[FIXME] ': return 'bugfix';",
+      "type": "bugfix",
+      "status": "pending",
+      "currentPhase": null,
+      "completedPhases": [],
+      "phaseTiming": {},
+      "startedAt": "2026-04-20T01:08:50.209Z",
+      "error": null
+    }
+  },
+  "lastRun": null
+}
