@@ -72,6 +72,14 @@ function loadJson(filename) {
   return JSON.parse(fs.readFileSync(path.join(CONFIGS_DIR, filename), 'utf-8'));
 }
 
+// ── Think-token stripping ───────────────────────────────────────
+
+const THINK_TAG_RE = /<think>[\s\S]*?<\/think>\s*/g;
+
+function stripThinkTokens(text) {
+  return text.replace(THINK_TAG_RE, '').trim();
+}
+
 // ── LLM Client class ───────────────────────────────────────────
 
 export class LlmClient {
@@ -127,11 +135,11 @@ export class LlmClient {
     return { ollama, mlx };
   }
 
-  /** Resolve the backend URL for a phase, with MLX → Ollama fallback. */
+  /** Resolve the backend URL for a phase. MLX is primary; Ollama is fallback. */
   async #resolveBackend(phaseConfig) {
+    const mlxOk = await this.checkMlx();
+    if (mlxOk) return { backend: 'mlx', baseUrl: this.#mlxUrl };
     if (phaseConfig.backend === 'mlx') {
-      const mlxOk = await this.checkMlx();
-      if (mlxOk) return { backend: 'mlx', baseUrl: this.#mlxUrl };
       process.stderr.write(`⚠️  MLX not available, falling back to Ollama for ${phaseConfig.model}\n`);
     }
     return { backend: 'ollama', baseUrl: this.#ollamaUrl };
@@ -161,6 +169,8 @@ export class LlmClient {
 
     assertLocalUrl(apiUrl, `generate(${phase})`);
 
+    const enableThink = phaseConfig.think === true;
+
     const requestBody = backend === 'mlx'
       ? {
           model,
@@ -171,6 +181,7 @@ export class LlmClient {
           temperature: phaseConfig.temperature,
           max_tokens: phaseConfig.max_tokens,
           stream: false,
+          enable_thinking: enableThink,
         }
       : {
           model,
@@ -179,7 +190,7 @@ export class LlmClient {
             { role: 'user', content: userPrompt },
           ],
           stream: false,
-          think: false,
+          think: enableThink,
           options: {
             temperature: phaseConfig.temperature,
             num_predict: phaseConfig.max_tokens,
@@ -207,10 +218,10 @@ export class LlmClient {
       }
 
       const json = await res.json();
-      if (backend === 'mlx') {
-        return json.choices?.[0]?.message?.content || '';
-      }
-      return json.message?.content || '';
+      const raw = backend === 'mlx'
+        ? (json.choices?.[0]?.message?.content || '')
+        : (json.message?.content || '');
+      return stripThinkTokens(raw);
     } catch (err) {
       if (err.name === 'AbortError') {
         throw new Error(`Timeout after ${timeout}s for phase "${phase}"`);
@@ -240,6 +251,8 @@ export class LlmClient {
 
     assertLocalUrl(apiUrl, `stream(${phase})`);
 
+    const enableThink = phaseConfig.think === true;
+
     const requestBody = backend === 'mlx'
       ? {
           model,
@@ -250,6 +263,7 @@ export class LlmClient {
           temperature: phaseConfig.temperature,
           max_tokens: phaseConfig.max_tokens,
           stream: true,
+          enable_thinking: enableThink,
         }
       : {
           model,
@@ -258,7 +272,7 @@ export class LlmClient {
             { role: 'user', content: userPrompt },
           ],
           stream: true,
-          think: false,
+          think: enableThink,
           options: {
             temperature: phaseConfig.temperature,
             num_predict: phaseConfig.max_tokens,

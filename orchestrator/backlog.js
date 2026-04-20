@@ -86,11 +86,21 @@ export function loadBacklog(projectPath, projectConfig) {
 
   // Merge, deduplicate, remove completed
   let tasks = deduplicateTasks([...manual, ...scanned]);
+  const beforeCompleted = tasks.length;
   tasks = tasks.filter(t => !completed.has(t.id));
+  const removedCompleted = beforeCompleted - tasks.length;
+  if (removedCompleted > 0) {
+    process.stderr.write(`  📋 Filtered ${removedCompleted} already-completed task(s)\n`);
+  }
 
   // Filter by complexity ceiling
   const ceiling = projectConfig.complexityCeiling || 'M';
+  const beforeCeiling = tasks.length;
   tasks = filterByComplexity(tasks, ceiling);
+  const removedCeiling = beforeCeiling - tasks.length;
+  if (removedCeiling > 0) {
+    process.stderr.write(`  📋 Filtered ${removedCeiling} task(s) above complexity ceiling "${ceiling}"\n`);
+  }
 
   // Prioritize
   tasks = prioritizeTasks(tasks);

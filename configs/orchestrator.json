@@ -1,10 +1,11 @@
 {
   "pipeline": {
-    "phases": ["triage", "research", "prd", "tech-research", "design", "spec", "build", "review"],
+    "phases": ["triage", "research", "prd", "tech-research", "design", "spec", "build", "review", "audit"],
     "skipPhasesForTypes": {
       "docs": ["build"],
       "test": ["prd", "design"],
-      "refactor": ["prd"]
+      "refactor": ["prd"],
+      "chore": ["audit"]
     }
   },
   "timeouts": {
@@ -15,14 +16,15 @@
     "design": 900,
     "spec": 900,
     "build": 1800,
-    "review": 900
+    "review": 900,
+    "audit": 1200
   },
   "retry": {
     "maxAttempts": 2,
     "backoffMs": 5000
   },
   "guardrails": {
-    "maxLinesChangedPerTask": 200,
+    "maxLinesChangedPerTask": 1000,
     "neverDeleteFiles": true,
     "memoryPressureThreshold": 85,
     "allowedEndpoints": [

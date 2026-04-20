@@ -1,0 +1,326 @@
+{
+  "fixed-spec-2026-04-20T14:04:52.429Z": [
+    {
+      "model": "Coder 4bit",
+      "scenario": "REST API + RBAC",
+      "mode": "fixed-spec",
+      "spec": {
+        "sections": {
+          "Implementation Plan": true,
+          "Constants": true,
+          "Test Plan": true,
+          "Migration": true,
+          "Checklist": true
+        },
+        "fileCount": 19,
+        "allPresent": true
+      },
+      "build": {
+        "filesWritten": 0,
+        "totalLines": 0,
+        "syntaxErrors": 0,
+        "hitLineLimit": false
+      },
+      "review": {
+        "verdict": "needs_revision",
+        "issueCounts": {
+          "critical": 1,
+          "high": 1,
+          "medium": 1,
+          "low": 0
+        }
+      },
+      "timestamp": "2026-04-20T14:04:52.429Z"
+    },
+    {
+      "model": "Coder 8bit",
+      "scenario": "REST API + RBAC",
+      "mode": "fixed-spec",
+      "spec": {
+        "allPresent": false,
+        "fileCount": 0,
+        "sections": {}
+      },
+      "build": {
+        "filesWritten": 0,
+        "totalLines": 0,
+        "syntaxErrors": 0,
+        "hitLineLimit": false
+      },
+      "review": {
+        "verdict": "error",
+        "issueCounts": {
+          "critical": 0,
+          "high": 0,
+          "medium": 0,
+          "low": 0
+        }
+      },
+      "timestamp": "2026-04-20T14:04:52.429Z"
+    }
+  ],
+  "fixed-spec-2026-04-20T14:18:17.058Z": [
+    {
+      "model": "Coder 4bit",
+      "scenario": "REST API + RBAC",
+      "mode": "fixed-spec",
+      "spec": {
+        "sections": {
+          "Implementation Plan": true,
+          "Constants": true,
+          "Test Plan": true,
+          "Migration": true,
+          "Checklist": true
+        },
+        "fileCount": 19,
+        "allPresent": true
+      },
+      "build": {
+        "filesWritten": 14,
+        "totalLines": 793,
+        "syntaxErrors": 0,
+        "hitLineLimit": true
+      },
+      "review": {
+        "verdict": "needs_revision",
+        "issueCounts": {
+          "critical": 1,
+          "high": 2,
+          "medium": 1,
+          "low": 1
+        }
+      },
+      "timestamp": "2026-04-20T14:18:17.058Z"
+    },
+    {
+      "model": "Coder 8bit",
+      "scenario": "REST API + RBAC",
+      "mode": "fixed-spec",
+      "spec": {
+        "sections": {
+          "Implementation Plan": true,
+          "Constants": true,
+          "Test Plan": true,
+          "Migration": true,
+          "Checklist": true
+        },
+        "fileCount": 19,
+        "allPresent": true
+      },
+      "build": {
+        "filesWritten": 12,
+        "totalLines": 786,
+        "syntaxErrors": 0,
+        "hitLineLimit": true
+      },
+      "review": {
+        "verdict": "needs_revision",
+        "issueCounts": {
+          "critical": 2,
+          "high": 2,
+          "medium": 2,
+          "low": 2
+        }
+      },
+      "timestamp": "2026-04-20T14:18:17.058Z"
+    }
+  ],
+  "own-spec-2026-04-20T14:32:22.591Z": [
+    {
+      "model": "Coder 4bit",
+      "scenario": "Real-time Event System",
+      "mode": "own-spec",
+      "spec": {
+        "sections": {
+          "Implementation Plan": true,
+          "Constants": true,
+          "Test Plan": true,
+          "Migration": true,
+          "Checklist": true
+        },
+        "fileCount": 32,
+        "allPresent": true
+      },
+      "build": {
+        "filesWritten": 11,
+        "totalLines": 415,
+        "syntaxErrors": 0,
+        "hitLineLimit": false
+      },
+      "review": {
+        "verdict": "needs_revision",
+        "issueCounts": {
+          "critical": 2,
+          "high": 2,
+          "medium": 1,
+          "low": 1
+        }
+      },
+      "timestamp": "2026-04-20T14:32:22.591Z"
+    },
+    {
+      "model": "Coder 8bit",
+      "scenario": "Real-time Event System",
+      "mode": "own-spec",
+      "spec": {
+        "sections": {
+          "Implementation Plan": true,
+          "Constants": true,
+          "Test Plan": true,
+          "Migration": true,
+          "Checklist": true
+        },
+        "fileCount": 17,
+        "allPresent": true
+      },
+      "build": {
+        "filesWritten": 9,
+        "totalLines": 753,
+        "syntaxErrors": 0,
+        "hitLineLimit": true
+      },
+      "review": {
+        "verdict": "needs_revision",
+        "issueCounts": {
+          "critical": 3,
+          "high": 3,
+          "medium": 3,
+          "low": 2
+        }
+      },
+      "timestamp": "2026-04-20T14:32:22.591Z"
+    }
+  ],
+  "fixed-spec-2026-04-20T14:53:03.015Z": [
+    {
+      "model": "Coder 4bit",
+      "scenario": "REST API + RBAC",
+      "mode": "fixed-spec",
+      "spec": {
+        "sections": {
+          "Implementation Plan": true,
+          "Constants": true,
+          "Test Plan": true,
+          "Migration": true,
+          "Checklist": true
+        },
+        "fileCount": 19,
+        "allPresent": true
+      },
+      "build": {
+        "filesWritten": 16,
+        "totalLines": 884,
+        "syntaxErrors": 0,
+        "hitLineLimit": false
+      },
+      "review": {
+        "verdict": "needs_revision",
+        "issueCounts": {
+          "critical": 2,
+          "high": 1,
+          "medium": 1,
+          "low": 0
+        }
+      },
+      "timestamp": "2026-04-20T14:53:03.015Z"
+    },
+    {
+      "model": "Coder 8bit",
+      "scenario": "REST API + RBAC",
+      "mode": "fixed-spec",
+      "spec": {
+        "sections": {
+          "Implementation Plan": true,
+          "Constants": true,
+          "Test Plan": true,
+          "Migration": true,
+          "Checklist": true
+        },
+        "fileCount": 19,
+        "allPresent": true
+      },
+      "build": {
+        "filesWritten": 13,
+        "totalLines": 1046,
+        "syntaxErrors": 0,
+        "hitLineLimit": false
+      },
+      "review": {
+        "verdict": "needs_revision",
+        "issueCounts": {
+          "critical": 1,
+          "high": 3,
+          "medium": 3,
+          "low": 2
+        }
+      },
+      "timestamp": "2026-04-20T14:53:03.015Z"
+    }
+  ],
+  "fixed-spec-2026-04-20T15:49:18.994Z": [
+    {
+      "model": "Coder 4bit",
+      "scenario": "REST API + RBAC",
+      "mode": "fixed-spec",
+      "spec": {
+        "sections": {
+          "Implementation Plan": true,
+          "Constants": true,
+          "Test Plan": true,
+          "Migration": true,
+          "Checklist": true
+        },
+        "fileCount": 19,
+        "allPresent": true
+      },
+      "build": {
+        "filesWritten": 9,
+        "totalLines": 352,
+        "syntaxErrors": 0,
+        "hitLineLimit": false
+      },
+      "review": {
+        "verdict": "needs_revision",
+        "issueCounts": {
+          "critical": 1,
+          "high": 1,
+          "medium": 1,
+          "low": 1
+        }
+      },
+      "timestamp": "2026-04-20T15:49:18.994Z"
+    },
+    {
+      "model": "Coder 6bit-DWQ",
+      "scenario": "REST API + RBAC",
+      "mode": "fixed-spec",
+      "spec": {
+        "sections": {
+          "Implementation Plan": true,
+          "Constants": true,
+          "Test Plan": true,
+          "Migration": true,
+          "Checklist": true
+        },
+        "fileCount": 19,
+        "allPresent": true
+      },
+      "build": {
+        "filesWritten": 14,
+        "totalLines": 1176,
+        "syntaxErrors": 0,
+        "hitLineLimit": false
+      },
+      "review": {
+        "verdict": "needs_revision",
+        "issueCounts": {
+          "critical": 2,
+          "high": 2,
+          "medium": 2,
+          "low": 2
+        }
+      },
+      "timestamp": "2026-04-20T15:49:18.994Z"
+    }
+  ]
+}

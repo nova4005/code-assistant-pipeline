@@ -1,26 +1,54 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
-<dict>
-    <key>Label</key>
-    <string>com.llm-tasks.mlx</string>
-    <key>ProgramArguments</key>
-    <array>
-        <string>/usr/bin/python3</string>
-        <string>REPLACE_WITH_ABSOLUTE_PATH/scripts/mlx-server.py</string>
-    </array>
-    <key>RunAtLoad</key>
-    <true/>
-    <key>KeepAlive</key>
-    <true/>
-    <key>StandardOutPath</key>
-    <string>/tmp/llm-tasks-mlx.out.log</string>
-    <key>StandardErrorPath</key>
-    <string>/tmp/llm-tasks-mlx.err.log</string>
-    <key>EnvironmentVariables</key>
-    <dict>
-        <key>PATH</key>
-        <string>/usr/local/bin:/usr/bin:/bin:/opt/homebrew/bin</string>
-    </dict>
-</dict>
+	<dict>
+		<key>
+			Label
+		</key>
+		<string>
+			com.llm-tasks.mlx
+		</string>
+		<key>
+			ProgramArguments
+		</key>
+		<array>
+			<string>
+				/Users/garrett/Developer/llm-tasks/scripts/.venv/bin/python3
+			</string>
+			<string>
+				/Users/garrett/Developer/llm-tasks/scripts/mlx-server.py
+			</string>
+		</array>
+		<key>
+			RunAtLoad
+		</key>
+		<true />
+		<key>
+			KeepAlive
+		</key>
+		<true />
+		<key>
+			StandardOutPath
+		</key>
+		<string>
+			/tmp/llm-tasks-mlx.out.log
+		</string>
+		<key>
+			StandardErrorPath
+		</key>
+		<string>
+			/tmp/llm-tasks-mlx.err.log
+		</string>
+		<key>
+			EnvironmentVariables
+		</key>
+		<dict>
+			<key>
+				PATH
+			</key>
+			<string>
+				/usr/local/bin:/usr/bin:/bin:/opt/homebrew/bin
+			</string>
+		</dict>
+	</dict>
 </plist>

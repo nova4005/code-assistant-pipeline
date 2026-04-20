@@ -8,6 +8,7 @@
  */
 import fs from 'fs';
 import path from 'path';
+import { execFileSync } from 'child_process';
 
 function parseFileBlocks(buildOutput) {
   const blocks = [];
@@ -28,10 +29,34 @@ function isPathSafe(filePath, projectPath) {
   return resolved.startsWith(path.resolve(projectPath));
 }
 
+const SYNTAX_CHECK_EXTENSIONS = new Set(['.js', '.mjs', '.cjs', '.json']);
+
+function checkSyntax(filePath) {
+  const ext = path.extname(filePath);
+  if (!SYNTAX_CHECK_EXTENSIONS.has(ext)) return null;
+
+  if (ext === '.json') {
+    try {
+      JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+      return null;
+    } catch (err) {
+      return `Invalid JSON: ${err.message}`;
+    }
+  }
+
+  // Use Node's --check flag for JS files
+  try {
+    execFileSync('node', ['--check', filePath], { encoding: 'utf-8', timeout: 10000, stdio: 'pipe' });
+    return null;
+  } catch (err) {
+    return `Syntax error: ${(err.stderr || err.message).split('\n').slice(0, 3).join(' ')}`;
+  }
+}
+
 export default async function run({ task, context, projectPath, client, phase }) {
   // Load guardrails
   const orchestratorConfig = JSON.parse(
-    fs.readFileSync(path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'configs', 'orchestrator.json'), 'utf-8')
+    fs.readFileSync(path.join(path.dirname(new URL(import.meta.url).pathname), '..', '..', 'configs', 'orchestrator.json'), 'utf-8')
   );
   const guardrails = orchestratorConfig.guardrails;
 
@@ -77,6 +102,7 @@ ${context['tech-research'] || 'N/A'}${feedbackSection}`;
   const files = parseFileBlocks(buildOutput);
   let totalLines = 0;
   const writtenFiles = [];
+  const syntaxErrors = [];
 
   for (const file of files) {
     if (!isPathSafe(file.filePath, projectPath)) {
@@ -102,10 +128,21 @@ ${context['tech-research'] || 'N/A'}${feedbackSection}`;
     fs.writeFileSync(fullPath, file.content);
     totalLines += lines;
     writtenFiles.push(file.filePath);
+
+    // Syntax check written files
+    const syntaxErr = checkSyntax(fullPath);
+    if (syntaxErr) {
+      syntaxErrors.push({ file: file.filePath, error: syntaxErr });
+      process.stderr.write(`  ⚠️  Syntax issue in ${file.filePath}: ${syntaxErr}\n`);
+    }
   }
 
-  // Return summary + raw output for review phase
-  const summary = `## Build Summary\n\nFiles written (${writtenFiles.length}):\n${writtenFiles.map(f => `- \`${f}\``).join('\n')}\n\nTotal lines: ${totalLines}\n\n---\n\n## Raw Build Output\n\n${buildOutput}`;
+  // Build summary
+  const syntaxSection = syntaxErrors.length > 0
+    ? `\n\n## Syntax Errors (${syntaxErrors.length})\n${syntaxErrors.map(e => `- \`${e.file}\`: ${e.error}`).join('\n')}`
+    : '\n\n## Syntax Check\nAll written files passed syntax validation.';
+
+  const summary = `## Build Summary\n\nFiles written (${writtenFiles.length}):\n${writtenFiles.map(f => `- \`${f}\``).join('\n')}\n\nTotal lines: ${totalLines}${syntaxSection}\n\n---\n\n## Raw Build Output\n\n${buildOutput}`;
 
   return summary;
 }

@@ -68,7 +68,12 @@ async function cmdRun(args) {
 
     const orchestratorConfig = loadJson('orchestrator.json');
     const projectsConfig = loadJson('projects.json');
-    const mergedConfig = { ...projectsConfig.defaults, path: projectPath };
+
+    // Find matching project config if one exists, otherwise use defaults only
+    const matchingProject = projectsConfig.projects.find(
+      p => path.resolve(p.path) === projectPath
+    );
+    const mergedConfig = { ...projectsConfig.defaults, ...matchingProject, path: projectPath };
 
     try {
       const results = await runProject(projectPath, mergedConfig, orchestratorConfig);
@@ -200,10 +205,10 @@ async function cmdHealth() {
     const client = new LlmClient();
     const health = await client.healthCheck();
 
-    process.stdout.write(`Ollama (localhost:11434): ${health.ollama ? '✅ Online' : '❌ Offline'}\n`);
     process.stdout.write(`MLX    (localhost:8765):  ${health.mlx ? '✅ Online' : '❌ Offline'}\n`);
+    process.stdout.write(`Ollama (localhost:11434): ${health.ollama ? '✅ Online' : '⚪ Offline (fallback only)'}\n`);
 
-    if (!health.ollama && !health.mlx) {
+    if (!health.mlx) {
       process.exit(1);
     }
   } catch (err) {

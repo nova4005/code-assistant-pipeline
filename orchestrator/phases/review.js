@@ -11,7 +11,7 @@ import path from 'path';
 
 // ── Verdict parsing ─────────────────────────────────────────────
 
-const VERDICT_PATTERN = /\*\*Verdict\*\*:\s*(?:✅|⚠️|❌)?\s*(PASS WITH NOTES|PASS|NEEDS REVISION)/i;
+const VERDICT_PATTERN = /\*{0,2}Verdict\*{0,2}[:\s]+(?:✅|⚠️|❌)?\s*(PASS WITH NOTES|PASS|NEEDS REVISION)/i;
 const ISSUES_SECTION_PATTERN = /## Issues Found\n([\s\S]*?)(?=\n## |$)/i;
 
 export function parseVerdict(reviewOutput) {
@@ -63,15 +63,23 @@ export default async function run({ task, context, projectPath, client, phase })
     ? `\n\nIMPORTANT: This is revision ${context.revisionIteration || '?'}. A previous review flagged issues that the build phase attempted to fix. You MUST specifically verify whether each previously reported issue has been addressed. If issues remain, return ❌ NEEDS REVISION again with only the unresolved items.`
     : '';
 
-  const systemPrompt = `You are a senior code reviewer performing a final quality review of auto-generated code.${revisionNote}
+  const systemPrompt = `You are a STRICT senior code reviewer performing a final quality review of auto-generated code. You are the last line of defense before this code is committed. Be skeptical — auto-generated code frequently has subtle issues.${revisionNote}
 
 Review the code for:
-1. **Correctness** — Does it match the spec and PRD requirements?
+1. **Correctness** — Does it match the spec and PRD requirements? Are there logic errors?
 2. **Security** — Any injection vectors, data exposure, or auth issues?
 3. **Performance** — Any obvious N+1 queries, memory leaks, or blocking operations?
 4. **Style** — Does it follow the project's existing conventions?
-5. **Completeness** — Are all requirements from the spec addressed?
+5. **Completeness** — Are all requirements from the spec addressed? Are any missing?
 6. **Edge Cases** — Are edge cases from the tech research handled?
+7. **Syntax Errors** — Check the build output's syntax check section. Any syntax errors MUST result in NEEDS REVISION.
+
+VERDICT RULES:
+- ❌ NEEDS REVISION if ANY of: syntax errors reported, security issues, missing requirements, logic errors
+- ⚠️ PASS WITH NOTES if: minor style issues, non-blocking suggestions only
+- ✅ PASS if: code is correct, complete, secure, and follows conventions
+
+Be specific. Cite file names and line numbers when reporting issues.
 
 Format your response as:
 

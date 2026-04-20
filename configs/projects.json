@@ -1,5 +1,16 @@
 {
-  "projects": [],
+  "projects": [
+    {
+      "_comment": "Teamander Mail",
+      "path": "/Users/garrett/Code/ghl-apps/mail",
+      "enabled": true,
+      "baseBranch": "main",
+      "maxTasksPerRun": 2,
+      "complexityCeiling": "XL",
+      "scanOnRun": true,
+      "taskFiles": []
+    }
+  ],
   "defaults": {
     "baseBranch": "main",
     "maxTasksPerRun": 5,

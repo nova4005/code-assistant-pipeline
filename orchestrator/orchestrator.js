@@ -33,21 +33,41 @@ function git(args, cwd) {
   return execFileSync('git', args, { cwd, encoding: 'utf-8', timeout: 30000 }).trim();
 }
 
+function gitQuiet(args, cwd) {
+  return execFileSync('git', args, { cwd, encoding: 'utf-8', timeout: 30000, stdio: ['pipe', 'pipe', 'pipe'] }).trim();
+}
+
 function getDefaultBranch(cwd) {
+  // First check if main or master branch exists locally (works without remotes)
+  try { gitQuiet(['rev-parse', '--verify', 'main'], cwd); return 'main'; } catch {}
+  try { gitQuiet(['rev-parse', '--verify', 'master'], cwd); return 'master'; } catch {}
+  // Fall back to remote HEAD if available
   try {
-    const symbolic = git(['symbolic-ref', 'refs/remotes/origin/HEAD', '--short'], cwd);
+    const symbolic = gitQuiet(['symbolic-ref', 'refs/remotes/origin/HEAD', '--short'], cwd);
     return symbolic.replace('origin/', '');
-  } catch {
-    // Fall back to checking if main or master exists
-    try { git(['rev-parse', '--verify', 'main'], cwd); return 'main'; } catch {}
-    try { git(['rev-parse', '--verify', 'master'], cwd); return 'master'; } catch {}
-    return 'main';
-  }
+  } catch {}
+  return 'main';
 }
 
 function stashChanges(cwd) {
+  // Commit any pending .llm-orchestrator/ state first so it's excluded from
+  // the stash — prevents conflicts on pop when state.json is updated mid-run.
+  try {
+    git(['add', '.llm-orchestrator/'], cwd);
+    const orchStatus = git(['status', '--porcelain', '--', '.llm-orchestrator/'], cwd);
+    if (orchStatus) {
+      git(['commit', '-m', 'chore(llm-orchestrator): save state before run', '--no-verify'], cwd);
+    }
+  } catch {}
+
+  // Stash remaining user changes (tracked files only; untracked survive branch
+  // switches and git stash push without -u won't touch them).
   const status = git(['status', '--porcelain'], cwd);
   if (!status) return false;
+  const hasTrackedChanges = status.split('\n').some(
+    line => line.trim() && line.slice(0, 2) !== '??'
+  );
+  if (!hasTrackedChanges) return false;
   git(['stash', 'push', '-m', 'llm-orchestrator: pre-run stash'], cwd);
   return true;
 }
@@ -74,19 +94,59 @@ function branchExists(branchName, cwd) {
   } catch { return false; }
 }
 
+function ensureStateGitignore(cwd) {
+  const gitignorePath = path.join(cwd, STATE_DIR, '.gitignore');
+  if (!fs.existsSync(gitignorePath)) {
+    fs.mkdirSync(path.join(cwd, STATE_DIR), { recursive: true });
+    fs.writeFileSync(gitignorePath, 'state.json\n');
+  }
+  // Untrack state.json if it was previously committed
+  try {
+    gitQuiet(['rm', '--cached', path.join(STATE_DIR, 'state.json')], cwd);
+    git(['add', path.join(STATE_DIR, '.gitignore')], cwd);
+    const status = git(['status', '--porcelain', '--', STATE_DIR], cwd);
+    if (status) {
+      git(['commit', '-m', 'chore(llm-orchestrator): untrack state.json (persist locally)', '--no-verify'], cwd);
+    }
+  } catch {
+    // state.json wasn't tracked — nothing to do
+  }
+}
+
 function createTaskBranch(branchName, baseBranch, cwd) {
+  // Commit any pending state changes before switching branches
+  try {
+    git(['add', '.llm-orchestrator/'], cwd);
+    const status = git(['status', '--porcelain', '--', '.llm-orchestrator/'], cwd);
+    if (status) {
+      git(['commit', '-m', 'chore(llm-orchestrator): save state before branch switch', '--no-verify'], cwd);
+    }
+  } catch {}
   git(['checkout', baseBranch], cwd);
-  try { git(['pull', '--ff-only'], cwd); } catch {} // best-effort pull
+  try {
+    execFileSync('git', ['pull', '--ff-only'], { cwd, encoding: 'utf-8', timeout: 30000, stdio: ['pipe', 'ignore', 'ignore'] });
+  } catch {} // best-effort pull; suppress stdout+stderr for repos without remotes
   if (branchExists(branchName, cwd)) {
-    git(['checkout', branchName], cwd);
+    try {
+      git(['checkout', branchName], cwd);
+    } catch {
+      // Working tree may be dirty from a previous run — force checkout
+      git(['checkout', '-f', branchName], cwd);
+    }
   } else {
     git(['checkout', '-b', branchName], cwd);
   }
 }
 
-function commitPhaseArtifacts(phase, taskId, cwd) {
+function commitPhaseArtifacts(phase, taskId, cwd, baseBranch) {
   try {
-    git(['add', '.llm-orchestrator/'], cwd);
+    // For build phase, stage all files (build writes to the project dir);
+    // for other phases, only stage .llm-orchestrator/ metadata.
+    if (phase === 'build') {
+      git(['add', '-A'], cwd);
+    } else {
+      git(['add', '.llm-orchestrator/'], cwd);
+    }
     const status = git(['status', '--porcelain'], cwd);
     if (status) {
       git(['commit', '-m', `chore(llm-orchestrator): ${phase} complete for ${taskId}`, '--no-verify'], cwd);
@@ -94,6 +154,52 @@ function commitPhaseArtifacts(phase, taskId, cwd) {
   } catch (err) {
     process.stderr.write(`⚠️  Could not commit phase ${phase}: ${err.message}\n`);
   }
+
+  // After the last planning phase (spec), squash all planning commits into one
+  if (phase === 'spec' && baseBranch) {
+    try {
+      const mergeBase = git(['merge-base', 'HEAD', baseBranch], cwd);
+      git(['reset', '--soft', mergeBase], cwd);
+      git(['commit', '-m', `chore(llm-orchestrator): planning complete for ${taskId} [triage→spec]`, '--no-verify'], cwd);
+    } catch (err) {
+      process.stderr.write(`⚠️  Could not squash planning commits: ${err.message}\n`);
+    }
+  }
+}
+
+function finalizeTaskBranch(taskId, title, baseBranch, cwd) {
+  try {
+    // Commit any remaining uncommitted work on the task branch
+    git(['add', '-A'], cwd);
+    const status = git(['status', '--porcelain'], cwd);
+    if (status) {
+      git(['commit', '-m', `chore(llm-orchestrator): finalize ${taskId}`, '--no-verify'], cwd);
+    }
+  } catch (err) {
+    process.stderr.write(`⚠️  Could not finalize task branch: ${err.message}\n`);
+  }
+
+  // Squash all execution-phase commits (build→review→audit + revisions) into one
+  // The planning commit is the first commit after the merge base; keep it and
+  // squash everything after it into a single execution commit.
+  try {
+    const mergeBase = git(['merge-base', 'HEAD', baseBranch], cwd);
+    // Count commits since merge base
+    const commitCount = parseInt(git(['rev-list', '--count', `${mergeBase}..HEAD`], cwd), 10);
+    if (commitCount > 1) {
+      // The first commit after mergeBase is the planning commit — find its SHA
+      const planningCommit = git(['rev-list', '--ancestry-path', `${mergeBase}..HEAD`, '--reverse'], cwd)
+        .split('\n')[0];
+      git(['reset', '--soft', planningCommit], cwd);
+      git(['commit', '-m', `feat(llm-orchestrator): task ${taskId} — ${title}`, '--no-verify'], cwd);
+    } else if (commitCount === 1) {
+      // Only planning commit exists (no execution phases ran); amend its message
+      git(['commit', '--amend', '-m', `feat(llm-orchestrator): task ${taskId} — ${title}`, '--no-verify'], cwd);
+    }
+  } catch (err) {
+    process.stderr.write(`⚠️  Could not squash execution commits: ${err.message}\n`);
+  }
+  // Do NOT checkout baseBranch or commit to it — the user reviews and merges.
 }
 
 // ── State persistence ───────────────────────────────────────────
@@ -154,6 +260,14 @@ async function loadPhaseRunner(phase) {
 function checkMemoryPressure(threshold) {
   try {
     const output = execSync('memory_pressure', { encoding: 'utf-8', timeout: 5000 });
+    // Parse "System-wide memory free percentage: 15%" from output
+    const match = output.match(/memory free percentage:\s*(\d+)%/i);
+    if (match) {
+      const freePercent = parseInt(match[1], 10);
+      const usedPercent = 100 - freePercent;
+      if (usedPercent >= threshold) return true;
+    }
+    // Fallback: treat WARNING/CRITICAL as pressure regardless of threshold
     if (output.includes('WARNING') || output.includes('CRITICAL')) {
       return true;
     }
@@ -189,6 +303,7 @@ export async function runTask(projectPath, task, client, orchestratorConfig) {
       status: 'pending',
       currentPhase: null,
       completedPhases: [],
+      phaseTiming: {},
       startedAt: new Date().toISOString(),
       error: null,
     };
@@ -199,8 +314,9 @@ export async function runTask(projectPath, task, client, orchestratorConfig) {
 
   // Create/resume task branch
   const branchName = `${branchPrefix}/${taskId}`;
+  const baseBranch = task.baseBranch || getDefaultBranch(projectPath);
   try {
-    createTaskBranch(branchName, task.baseBranch || getDefaultBranch(projectPath), projectPath);
+    createTaskBranch(branchName, baseBranch, projectPath);
   } catch (err) {
     taskState.status = 'error';
     taskState.error = `Branch creation failed: ${err.message}`;
@@ -208,6 +324,7 @@ export async function runTask(projectPath, task, client, orchestratorConfig) {
     return taskState;
   }
 
+  try {
   // Build context from completed phases
   const context = {};
   for (const p of taskState.completedPhases) {
@@ -223,6 +340,16 @@ export async function runTask(projectPath, task, client, orchestratorConfig) {
     taskState.status = 'running';
     saveState(projectPath, state);
 
+    // Check memory pressure before each phase
+    if (checkMemoryPressure(orchestratorConfig.guardrails.memoryPressureThreshold)) {
+      taskState.status = 'error';
+      taskState.error = `Memory pressure exceeded ${orchestratorConfig.guardrails.memoryPressureThreshold}% before phase "${phase}"`;
+      taskState.currentPhase = null;
+      saveState(projectPath, state);
+      process.stderr.write(`  ⚠️  ${taskId} → memory pressure too high, stopping before ${phase}\n`);
+      return taskState;
+    }
+
     process.stderr.write(`  ⏳ ${taskId} → ${phase}...\n`);
 
     const retryConfig = orchestratorConfig.retry;
@@ -231,7 +358,9 @@ export async function runTask(projectPath, task, client, orchestratorConfig) {
     for (let attempt = 0; attempt <= retryConfig.maxAttempts; attempt++) {
       try {
         const runner = await loadPhaseRunner(phase);
+        const phaseStart = Date.now();
         const output = await runner({ task, context, projectPath, client, phase });
+        const phaseElapsed = ((Date.now() - phaseStart) / 1000).toFixed(1);
 
         // Save phase output
         savePhaseOutput(projectPath, taskId, phase, output);
@@ -239,11 +368,23 @@ export async function runTask(projectPath, task, client, orchestratorConfig) {
 
         taskState.completedPhases.push(phase);
         taskState.currentPhase = null;
+        if (!taskState.phaseTiming) taskState.phaseTiming = {};
+        taskState.phaseTiming[phase] = parseFloat(phaseElapsed);
         saveState(projectPath, state);
 
+        // Track files written during build phase
+        if (phase === 'build') {
+          const fileListMatch = output.match(/Files written \(\d+\):\n((?:- `[^`]+`\n?)*)/);
+          if (fileListMatch) {
+            const files = [...fileListMatch[1].matchAll(/- `([^`]+)`/g)].map(m => m[1]);
+            taskState.filesWritten = files;
+            saveState(projectPath, state);
+          }
+        }
+
         // Commit artifacts
-        commitPhaseArtifacts(phase, taskId, projectPath);
-        process.stderr.write(`  ✅ ${taskId} → ${phase} complete\n`);
+        commitPhaseArtifacts(phase, taskId, projectPath, baseBranch);
+        process.stderr.write(`  ✅ ${taskId} → ${phase} complete (${phaseElapsed}s)\n`);
 
         lastErr = null;
         break;
@@ -329,17 +470,21 @@ export async function runTask(projectPath, task, client, orchestratorConfig) {
       for (let attempt = 0; attempt <= retryConfig.maxAttempts; attempt++) {
         try {
           const runner = await loadPhaseRunner(phase);
+          const phaseStart = Date.now();
           const output = await runner({ task, context, projectPath, client, phase });
+          const phaseElapsed = ((Date.now() - phaseStart) / 1000).toFixed(1);
 
           savePhaseOutput(projectPath, taskId, phase, output);
           context[phase] = output;
 
           taskState.completedPhases.push(phase);
           taskState.currentPhase = null;
+          if (!taskState.phaseTiming) taskState.phaseTiming = {};
+          taskState.phaseTiming[`${phase}-r${iteration}`] = parseFloat(phaseElapsed);
           saveState(projectPath, state);
 
-          commitPhaseArtifacts(phase, taskId, projectPath);
-          process.stderr.write(`  ✅ ${taskId} → ${phase} (revision ${iteration}) complete\n`);
+          commitPhaseArtifacts(phase, taskId, projectPath, baseBranch);
+          process.stderr.write(`  ✅ ${taskId} → ${phase} (revision ${iteration}) complete (${phaseElapsed}s)\n`);
 
           lastErr = null;
           break;
@@ -376,6 +521,11 @@ export async function runTask(projectPath, task, client, orchestratorConfig) {
   saveState(projectPath, state);
   process.stderr.write(`  🏁 ${taskId} complete\n`);
   return taskState;
+
+  } finally {
+    // Always commit task work and return to base branch
+    finalizeTaskBranch(taskId, task.title, baseBranch, projectPath);
+  }
 }
 
 export async function runProject(projectPath, projectConfig, orchestratorConfig) {
@@ -383,11 +533,11 @@ export async function runProject(projectPath, projectConfig, orchestratorConfig)
 
   // Health check
   const health = await client.healthCheck();
-  if (!health.ollama) {
-    throw new Error('Ollama is not reachable at ' + 'localhost:11434');
-  }
   if (!health.mlx) {
-    process.stderr.write('⚠️  MLX server not reachable — will fall back to Ollama for MLX phases\n');
+    throw new Error('MLX server is not reachable at localhost:8765');
+  }
+  if (!health.ollama) {
+    process.stderr.write('⚠️  Ollama not reachable — Ollama fallback unavailable\n');
   }
 
   // Load backlog
@@ -402,7 +552,8 @@ export async function runProject(projectPath, projectConfig, orchestratorConfig)
   const maxTasks = projectConfig.maxTasksPerRun || 5;
   const tasksToRun = tasks.slice(0, maxTasks);
 
-  process.stderr.write(`\n📋 Running ${tasksToRun.length} task(s) for ${path.basename(projectPath)}\n`);
+  process.stderr.write(`\n📋 ${tasks.length} task(s) in backlog, running ${tasksToRun.length} (maxTasksPerRun: ${maxTasks})\n`);
+  process.stderr.write(`📋 Running for ${path.basename(projectPath)}\n`);
 
   // Stash uncommitted changes
   const originalBranch = currentBranch(projectPath);
@@ -410,6 +561,9 @@ export async function runProject(projectPath, projectConfig, orchestratorConfig)
   if (stashed) {
     process.stderr.write('📦 Stashed uncommitted changes\n');
   }
+
+  // Ensure state.json is gitignored so it persists across branch switches
+  ensureStateGitignore(projectPath);
 
   const results = [];
 
@@ -425,6 +579,13 @@ export async function runProject(projectPath, projectConfig, orchestratorConfig)
       results.push(result);
     }
   } finally {
+    // Update lastRun timestamp on state (state.json is gitignored, persists on disk)
+    try {
+      const state = loadState(projectPath);
+      state.lastRun = new Date().toISOString();
+      saveState(projectPath, state);
+    } catch {}
+
     // Restore original branch and stash
     try {
       git(['checkout', originalBranch], projectPath);

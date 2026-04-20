@@ -49,6 +49,13 @@ export function generateReport(allResults, startTime) {
         lines.push(`- Branch: \`llm-orchestrator/${task.id}\``);
       }
 
+      if (task.phaseTiming && Object.keys(task.phaseTiming).length > 0) {
+        const timings = Object.entries(task.phaseTiming)
+          .map(([p, s]) => `${p}: ${s}s`)
+          .join(', ');
+        lines.push(`- Phase timing: ${timings}`);
+      }
+
       lines.push('');
     }
   }
